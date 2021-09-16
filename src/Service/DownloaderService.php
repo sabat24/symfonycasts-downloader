@@ -44,7 +44,7 @@ class DownloaderService
 
         $downloadPath = "{$this->configs['TARGET']}/symfonycasts";
         if (!is_dir($downloadPath) && !mkdir($downloadPath) && !is_dir($downloadPath)) {
-            $this->io->error("Unable to create download directory '{$downloadPath}'");
+            $this->io->error("Unable to create download directory '$downloadPath'");
 
             return;
         }
@@ -59,7 +59,7 @@ class DownloaderService
         foreach ($courses as $title => $urls) {
             ++$coursesCounter;
             $this->io->newLine(3);
-            $this->io->title("Processing course: '{$title}' ({$coursesCounter} of {$coursesCount})");
+            $this->io->title("Processing course: '$title' ($coursesCounter of $coursesCount)");
             $isCodeDownloaded = false;
             $isScriptDownloaded = false;
 
@@ -70,7 +70,7 @@ class DownloaderService
             }
 
             $titlePath = str_replace(self::BAD_WINDOWS_PATH_CHARS, '-', $title);
-            $coursePath = "{$downloadPath}/{$titlePath}";
+            $coursePath = "$downloadPath/$titlePath";
 
             if (!is_dir($coursePath) && !mkdir($coursePath) && !is_dir($coursePath)) {
                 $this->io->error('Unable to create course directory');
@@ -90,7 +90,7 @@ class DownloaderService
             foreach ($urls as $name => $url) {
                 ++$chaptersCounter;
                 $this->io->newLine();
-                $this->io->section("Chapter '{$this->dashesToTitle($name)}' ({$chaptersCounter} of {$chaptersCount})");
+                $this->io->section("Chapter '{$this->dashesToTitle($name)}' ($chaptersCounter of $chaptersCount)");
 
                 try {
                     $response = $this->client->get($url);
@@ -101,19 +101,23 @@ class DownloaderService
                 }
 
                 $crawler = new Crawler($response->getBody()->getContents());
-                foreach ($crawler->filter('[aria-labelledby="downloadDropdown"] a') as $i => $a) {
+                foreach ($crawler->filter('[aria-labelledby="downloadDropdown"] a') as $a) {
                     $url = $a->getAttribute('href');
                     $fileName = false;
                     switch ($url) {
+                        case 'javascript:void(0)':
+                            $this->io->warning('Not subscribed to course: ' . $url);
+                            $fileName = null;
+                        break;
                         case (false !== strpos($url, 'video')):
-                            $fileName = sprintf('%03d', $chaptersCounter) . "-{$name}.mp4";
+                            $fileName = sprintf('%03d', $chaptersCounter) . "-$name.mp4";
                             break;
                         case (false !== strpos($url, 'script') && !$isScriptDownloaded):
-                            $fileName = "{$titlePath}.pdf";
+                            $fileName = "$titlePath.pdf";
                             $isScriptDownloaded = true;
                             break;
                         case (false !== strpos($url, 'code') && !$isCodeDownloaded):
-                            $fileName = "{$titlePath}.zip";
+                            $fileName = "$titlePath.zip";
                             $isCodeDownloaded = true;
                             break;
                         case (false !== strpos($url, 'script') && $isScriptDownloaded):
@@ -121,7 +125,7 @@ class DownloaderService
                             $fileName = null;
                             break;
                         default:
-                            $this->io->warning('Unkown Link Type: ' . $url);
+                            $this->io->warning('Unknown Link Type: ' . $url);
                     }
 
                     if($fileName === null) {
@@ -133,8 +137,8 @@ class DownloaderService
                         continue;
                     }
 
-                    if (file_exists("{$coursePath}/{$fileName}")) {
-                        $this->io->writeln("File '{$fileName}' was already downloaded");
+                    if (file_exists("$coursePath/$fileName")) {
+                        $this->io->writeln("File '$fileName' was already downloaded");
                         continue;
                     }
 
@@ -154,11 +158,11 @@ class DownloaderService
      *
      * @return void
      */
-    private function downloadFile($url, $filePath, $fileName): void
+    private function downloadFile(string $url, string $filePath, string $fileName): void
     {
         $io = $this->io;
         $progressBar = null;
-        $file = "{$filePath}/{$fileName}";
+        $file = "$filePath/$fileName";
 
         try {
             $this->client->get($url, [
@@ -168,7 +172,7 @@ class DownloaderService
                 'progress' => function($total, $downloaded) use ($io, $fileName, &$progressBar) {
                     if ($total && $progressBar === null) {
                         $progressBar = $io->createProgressBar($total);
-                        $progressBar->setFormat("<info>[%bar%]</info> {$fileName}");
+                        $progressBar->setFormat("<info>[%bar%]</info> $fileName");
                         $progressBar->start();
                     }
 
@@ -225,15 +229,16 @@ class DownloaderService
 
         $courses = [];
         $crawler = new Crawler($response->getBody()->getContents());
-        $elements = $crawler->filter('.js-course-item > a');
+        $elements = $crawler->filter('.js-course-item .d-flex > a');
 
         $progressBar = $this->io->createProgressBar($elements->count());
         $progressBar->setFormat('<info>[%bar%]</info> %message%');
+        $progressBar->setMessage('Downloading courses list');
         $progressBar->start();
 
         foreach ($elements as $itemElement) {
             $titleElement = new Crawler($itemElement);
-            $courseTitle = $titleElement->filter('.course-list-item-title')->text();
+            $courseTitle = $titleElement->filter('h3')->text();
             $courseUri = $itemElement->getAttribute('href');
 
             $progressBar->setMessage($courseTitle);
@@ -242,7 +247,14 @@ class DownloaderService
             $chapters = [];
             $response = $this->client->get($courseUri);
             $crawler = new Crawler($response->getBody()->getContents());
-            foreach ($crawler->filter('ul.chapter-list > li > a') as $a) {
+
+            $chapterLinks = $crawler->filter('ul.chapter-list > li > a');
+
+            if ($chapterLinks->count() === 0) {
+                continue;
+            }
+
+            foreach ($chapterLinks as $a) {
                 if ($a->getAttribute('href') === '#') {
                     continue;
                 }
@@ -303,11 +315,11 @@ class DownloaderService
 
     /**
      * @param string $text
-     * @param bool   $capitalizeFirstCharacter
+     * @param bool $capitalizeFirstCharacter
      *
-     * @return mixed|string
+     * @return string
      */
-    private function dashesToTitle($text, $capitalizeFirstCharacter = true)
+    private function dashesToTitle(string $text, bool $capitalizeFirstCharacter = true): string
     {
         $str = str_replace('-', ' ', ucwords($text, '-'));
 
