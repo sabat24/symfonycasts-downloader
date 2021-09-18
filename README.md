@@ -9,5 +9,5 @@ $ cp src/application.ini src/local.ini // Add your credentials
 
 ### Usage
 ```sh
-$ php src/console app:download
+$ php download.php
 ```

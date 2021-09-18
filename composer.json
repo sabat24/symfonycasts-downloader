@@ -15,11 +15,11 @@
         "ext-dom": "*",
         "ext-json": "*",
         "guzzlehttp/guzzle": "^6.2",
-        "symfony/dom-crawler": "^4.2",
-        "symfony/css-selector": "^4.2",
-        "symfony/console": "^4.2"
+        "symfony/dom-crawler": "^5.3",
+        "symfony/css-selector": "^5.3",
+        "symfony/console": "^5.3"
     },
     "require-dev": {
-        "symfony/var-dumper": "^4.2"
+        "symfony/var-dumper": "^5.3"
     }
 }
