@@ -1,44 +1,54 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service;
 
+use App\Service\SubtitlesConverter\OutputFormatDriver\SrtDriver;
+use App\Service\SubtitlesConverter\WebvttConverterService;
 use GuzzleHttp\Client;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\Exception\ClientException;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DomCrawler\Crawler;
 
-class DownloaderService
+final class DownloaderService
 {
-     private const BAD_WINDOWS_PATH_CHARS = ['<','>',':','"','/','\\','|','?','*'];
 
-    /** @var SymfonyStyle $io */
-    private $io;
+    private const FILE_TYPE_VIDEO = 1;
 
-    /** @var array $configs */
-    private $configs;
+    private const FILE_TYPE_SCRIPT = 2;
 
-    /** @var Client $client */
-    private $client;
+    private const FILE_TYPE_CODE = 3;
 
-    /**
-     * @param SymfonyStyle $io
-     * @param array        $configs
-     */
+    private const FILE_TYPE_SUBTITLES = 4;
+
+    public const OPTIONS_FILE_TYPES = [
+        'video' => self::FILE_TYPE_VIDEO,
+        'script' => self::FILE_TYPE_SCRIPT,
+        'code' => self::FILE_TYPE_CODE,
+        'subtitles' => self::FILE_TYPE_SUBTITLES,
+    ];
+
+    private const BAD_WINDOWS_PATH_CHARS = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+    private SymfonyStyle $io;
+
+    private array $configs;
+
+    private Client $client;
+
     public function __construct(SymfonyStyle $io, array $configs)
     {
         $this->io = $io;
         $this->configs = $configs;
         $this->client = new Client([
             'base_uri' => $this->configs['URL'],
-            'cookies' => true
+            'cookies' => true,
         ]);
     }
 
-    /**
-     * @return void
-     */
-    public function download(): void
+    public function download(array $options = []): void
     {
         $this->login();
 
@@ -54,14 +64,16 @@ class DownloaderService
         $this->io->section('Wanted courses');
         $this->io->listing(array_keys($courses));
 
+        $fileTypesOptions = array_flip(self::OPTIONS_FILE_TYPES);
+
         $coursesCounter = 0;
         $coursesCount = \count($courses);
         foreach ($courses as $title => $urls) {
             ++$coursesCounter;
             $this->io->newLine(3);
             $this->io->title("Processing course: '$title' ($coursesCounter of $coursesCount)");
-            $isCodeDownloaded = false;
-            $isScriptDownloaded = false;
+            $isChapterCodeDownloaded = false;
+            $isChapterScriptDownloaded = false;
 
             if (empty($urls)) {
                 $this->io->warning('No chapters to download');
@@ -80,8 +92,8 @@ class DownloaderService
 
             $chaptersCounter = 0;
 
-            foreach ($urls as $name => $url){
-                if(preg_match("/\/activity\/[0-9]{3}$/", $url)) {
+            foreach ($urls as $name => $url) {
+                if (preg_match("/\/activity\/[0-9]{3}$/", $url)) {
                     unset($urls[$name]);
                 }
             }
@@ -101,34 +113,61 @@ class DownloaderService
                 }
 
                 $crawler = new Crawler($response->getBody()->getContents());
-                foreach ($crawler->filter('[aria-labelledby="downloadDropdown"] a') as $a) {
-                    $url = $a->getAttribute('href');
+                /** @var \DOMElement $domElement */
+                foreach ($crawler->filter('[aria-labelledby="downloadDropdown"] a, #captions') as $domElement) {
+                    $url = null;
                     $fileName = false;
-                    switch ($url) {
-                        case 'javascript:void(0)':
-                            $this->io->warning('Not subscribed to course: ' . $url);
-                            $fileName = null;
+                    $fileType = null;
+                    switch ($domElement->nodeName) {
+                        case 'a':
+                            $url = $domElement->getAttribute('href');
                         break;
-                        case (false !== strpos($url, 'video')):
-                            $fileName = sprintf('%03d', $chaptersCounter) . "-$name.mp4";
-                            break;
-                        case (false !== strpos($url, 'script') && !$isScriptDownloaded):
-                            $fileName = "$titlePath.pdf";
-                            $isScriptDownloaded = true;
-                            break;
-                        case (false !== strpos($url, 'code') && !$isCodeDownloaded):
-                            $fileName = "$titlePath.zip";
-                            $isCodeDownloaded = true;
-                            break;
-                        case (false !== strpos($url, 'script') && $isScriptDownloaded):
-                        case (false !== strpos($url, 'code') && $isCodeDownloaded):
-                            $fileName = null;
-                            break;
-                        default:
-                            $this->io->warning('Unknown Link Type: ' . $url);
+                        case 'track':
+                            $url = $domElement->getAttribute('src');
+                        break;
                     }
 
-                    if($fileName === null) {
+                    switch ($url) {
+                        case 'javascript:void(0)':
+                            $this->io->warning('Not subscribed to course: '.$url);
+                            $fileName = null;
+                        break;
+                        case (false !== strpos($url, '.vtt')):
+                            $fileType = self::FILE_TYPE_SUBTITLES;
+                            $fileName = in_array($fileTypesOptions[self::FILE_TYPE_SUBTITLES], $options['download_only'])
+                                ? sprintf('%03d', $chaptersCounter)."-$name.vtt"
+                                : null;
+                        break;
+                        case (false !== strpos($url, 'video')):
+                            $fileType = self::FILE_TYPE_VIDEO;
+                            $fileName = in_array($fileTypesOptions[self::FILE_TYPE_VIDEO], $options['download_only'])
+                                ? sprintf('%03d', $chaptersCounter)."-$name.mp4"
+                                : null;
+                        break;
+                        case (false !== strpos($url, 'script')):
+                            $fileType = self::FILE_TYPE_SCRIPT;
+                            if (in_array($fileTypesOptions[self::FILE_TYPE_SCRIPT], $options['download_only']) && !$isChapterScriptDownloaded) {
+                                $fileName = "$titlePath.pdf";
+                                $isChapterScriptDownloaded = true;
+                            } else {
+                                $fileName = null;
+                            }
+                        break;
+                        case (false !== strpos($url, 'code')):
+                            $fileType = self::FILE_TYPE_CODE;
+                            if (in_array($fileTypesOptions[self::FILE_TYPE_CODE], $options['download_only']) && !$isChapterCodeDownloaded) {
+                                $fileName = "$titlePath.zip";
+                                $isChapterCodeDownloaded = true;
+                            } else {
+                                $fileName = null;
+                            }
+
+                        break;
+                        default:
+                            $this->io->warning('Unknown Link Type: '.$url);
+                    }
+
+                    if ($fileName === null) {
                         continue;
                     }
 
@@ -137,13 +176,24 @@ class DownloaderService
                         continue;
                     }
 
-                    if (file_exists("$coursePath/$fileName")) {
+                    // ignore already downloaded files unless user wanted to re-download that file type again
+                    if (file_exists("$coursePath/$fileName") && !in_array($fileTypesOptions[$fileType], $options['force_download'])) {
                         $this->io->writeln("File '$fileName' was already downloaded");
                         continue;
                     }
 
-                    $this->downloadFile($a->getAttribute('href'), $coursePath, $fileName);
+                    $filePath = $this->downloadFile($url, $coursePath, $fileName);
                     $this->io->newLine();
+                    if ($fileType === self::FILE_TYPE_SUBTITLES && ($options['convert_subtitles_to'] ?? false) === 'srt') {
+                        try {
+                            $formatModel = new SrtDriver();
+                            $convertedFileName = (new WebvttConverterService($filePath))
+                                ->convert($formatModel, $coursePath, sprintf('%03d', $chaptersCounter)."-$name");
+                            $this->io->writeln("File '$fileName' converted to '$convertedFileName'");
+                        } catch (\Exception $e) {
+                            $this->io->writeln($e->getMessage());
+                        }
+                    }
                 }
             }
         }
@@ -151,14 +201,7 @@ class DownloaderService
         $this->io->success('Finished');
     }
 
-    /**
-     * @param string $url
-     * @param string $filePath
-     * @param string $fileName
-     *
-     * @return void
-     */
-    private function downloadFile(string $url, string $filePath, string $fileName): void
+    private function downloadFile(string $url, string $filePath, string $fileName): string
     {
         $io = $this->io;
         $progressBar = null;
@@ -169,7 +212,7 @@ class DownloaderService
                 'save_to' => $file,
                 'allow_redirects' => ['max' => 2],
                 'auth' => ['username', 'password'],
-                'progress' => function($total, $downloaded) use ($io, $fileName, &$progressBar) {
+                'progress' => function ($total, $downloaded) use ($io, $fileName, &$progressBar) {
                     if ($total && $progressBar === null) {
                         $progressBar = $io->createProgressBar($total);
                         $progressBar->setFormat("<info>[%bar%]</info> $fileName");
@@ -185,13 +228,15 @@ class DownloaderService
 
                         $progressBar->setProgress($downloaded);
                     }
-                }
+                },
             ]);
         } catch (\Exception $e) {
             $this->io->warning($e->getMessage());
 
             unlink($file);
         }
+
+        return $file;
     }
 
     /**
@@ -220,7 +265,7 @@ class DownloaderService
     {
         $this->io->title('Fetching courses...');
 
-        $blueprintFile = __DIR__ . '/../blueprint.json';
+        $blueprintFile = __DIR__.'/../blueprint.json';
         if (file_exists($blueprintFile)) {
             return json_decode(file_get_contents($blueprintFile), true);
         }
@@ -236,6 +281,7 @@ class DownloaderService
         $progressBar->setMessage('Downloading courses list');
         $progressBar->start();
 
+        /** @var \DOMElement $itemElement */
         foreach ($elements as $itemElement) {
             $titleElement = new Crawler($itemElement);
             $courseTitle = $titleElement->filter('h3')->text();
@@ -254,6 +300,7 @@ class DownloaderService
                 continue;
             }
 
+            /** @var \DOMElement $a */
             foreach ($chapterLinks as $a) {
                 if ($a->getAttribute('href') === '#') {
                     continue;
@@ -286,6 +333,7 @@ class DownloaderService
 
         $csrfToken = '';
         $crawler = new Crawler($response->getBody()->getContents());
+        /** @var \DOMElement $input */
         foreach ($crawler->filter('input') as $input) {
             if ($input->getAttribute('name') === '_csrf_token') {
                 $csrfToken = $input->getAttribute('value');
@@ -301,11 +349,11 @@ class DownloaderService
             'form_params' => [
                 'email' => $this->configs['EMAIL'],
                 'password' => $this->configs['PASSWORD'],
-                '_csrf_token' => $csrfToken
+                '_csrf_token' => $csrfToken,
             ],
-            'on_stats' => function(TransferStats $stats) use (&$currentUrl) {
+            'on_stats' => function (TransferStats $stats) use (&$currentUrl) {
                 $currentUrl = $stats->getEffectiveUri();
-            }
+            },
         ]);
 
         if ((string) $currentUrl !== 'https://symfonycasts.com/') {

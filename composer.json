@@ -11,13 +11,14 @@
         "psr-4": {"App\\": "src/"}
     },
     "require": {
-        "php": "^7.1",
+        "php": "^7.4",
         "ext-dom": "*",
         "ext-json": "*",
         "guzzlehttp/guzzle": "^6.2",
         "symfony/dom-crawler": "^5.3",
         "symfony/css-selector": "^5.3",
-        "symfony/console": "^5.3"
+        "symfony/console": "^5.3",
+        "symfony/options-resolver": "^5.3"
     },
     "require-dev": {
         "symfony/var-dumper": "^5.3"
