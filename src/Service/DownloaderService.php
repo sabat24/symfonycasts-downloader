@@ -7,8 +7,8 @@ namespace App\Service;
 use App\Service\SubtitlesConverter\OutputFormatDriver\SrtDriver;
 use App\Service\SubtitlesConverter\WebvttConverterService;
 use GuzzleHttp\Client;
-use GuzzleHttp\TransferStats;
 use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\TransferStats;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\DomCrawler\Crawler;
 
@@ -125,6 +125,7 @@ final class DownloaderService
                         case 'track':
                             $url = $domElement->getAttribute('src');
                         break;
+                        case 'source':
                     }
 
                     switch ($url) {
@@ -176,14 +177,34 @@ final class DownloaderService
                         continue;
                     }
 
+                    $filePath = "$coursePath/$fileName";
+
+                    $downloadOtherVideoQuality = $this->downloadOtherQuality($fileType, $filePath, $options['video_quality']);
+
                     // ignore already downloaded files unless user wanted to re-download that file type again
-                    if (file_exists("$coursePath/$fileName") && !in_array($fileTypesOptions[$fileType], $options['force_download'])) {
-                        $this->io->writeln("File '$fileName' was already downloaded");
-                        continue;
+                    if (file_exists($filePath) && !in_array($fileTypesOptions[$fileType], $options['force_download'])) {
+                        if (!$downloadOtherVideoQuality) {
+                            $this->io->writeln("File '$fileName' was already downloaded");
+                            continue;
+                        }
+                    }
+
+                    if ($downloadOtherVideoQuality && $options['video_quality'] !== null) {
+                        try {
+                            $url = $this->getProperVideoQualityUrl($crawler, VideoQualityService::OPTIONS_VIDEO_QUALITY[$options['video_quality']]);
+                        } catch (\Exception $e) {
+                            $this->io->writeln($e->getMessage());
+                            continue;
+                        }
                     }
 
                     $filePath = $this->downloadFile($url, $coursePath, $fileName);
                     $this->io->newLine();
+
+                    if ($filePath === null) {
+                        continue;
+                    }
+
                     if ($fileType === self::FILE_TYPE_SUBTITLES && ($options['convert_subtitles_to'] ?? false) === 'srt') {
                         try {
                             $formatModel = new SrtDriver();
@@ -201,15 +222,15 @@ final class DownloaderService
         $this->io->success('Finished');
     }
 
-    private function downloadFile(string $url, string $filePath, string $fileName): string
+    private function downloadFile(string $url, string $coursePath, string $fileName): ?string
     {
         $io = $this->io;
         $progressBar = null;
-        $file = "$filePath/$fileName";
+        $filePath = "$coursePath/$fileName";
 
         try {
             $this->client->get($url, [
-                'save_to' => $file,
+                'save_to' => $filePath,
                 'allow_redirects' => ['max' => 2],
                 'auth' => ['username', 'password'],
                 'progress' => function ($total, $downloaded) use ($io, $fileName, &$progressBar) {
@@ -233,10 +254,11 @@ final class DownloaderService
         } catch (\Exception $e) {
             $this->io->warning($e->getMessage());
 
-            unlink($file);
+            unlink($filePath);
+            $filePath = null;
         }
 
-        return $file;
+        return $filePath;
     }
 
     /**
@@ -376,5 +398,44 @@ final class DownloaderService
         }
 
         return $str;
+    }
+
+    // if user wants to download video file with specified quality
+    private function downloadOtherQuality(?int $fileType, string $filePath, ?string $videoQualityOption): bool
+    {
+        // if file does not exist, download it anyway
+        if (!file_exists($filePath)) {
+            return true;
+        }
+
+        if ($fileType === self::FILE_TYPE_VIDEO && $videoQualityOption !== null) {
+            $videoQualityService = new VideoQualityService();
+
+            return !$videoQualityService->isRequiredQuality(
+                $filePath,
+                VideoQualityService::OPTIONS_VIDEO_QUALITY[$videoQualityOption],
+            );
+        }
+
+        return false;
+    }
+
+    /**
+     * @throws \Exception
+     */
+    private function getProperVideoQualityUrl(Crawler $crawler, string $videoQuality): string
+    {
+        switch ($videoQuality) {
+            case VideoQualityService::VIDEO_QUALITY_SD:
+                $selector = '#js-video-player source[title="SD"]';
+            break;
+            case VideoQualityService::VIDEO_QUALITY_HD:
+                $selector = '#js-video-player source[title="HD"]';
+            break;
+            default:
+                throw new \Exception("Video not found for provided quality: $videoQuality");
+        }
+
+        return $crawler->filter($selector)->first()->getNode(0)->getAttribute('src');
     }
 }

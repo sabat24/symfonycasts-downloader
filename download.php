@@ -3,6 +3,7 @@
 require __DIR__.'/vendor/autoload.php';
 
 use App\Service\DownloaderService;
+use App\Service\VideoQualityService;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -24,9 +25,10 @@ function downloadCommand(InputInterface $input, OutputInterface $output)
         'convert_subtitles_to' => $input->getOption('convert-subtitles'),
         'force_download' => $input->getOption('force') ? array_map('trim', explode(',', $input->getOption('force'))) : [],
         'download_only' => $input->getOption('download') ? array_map('trim', explode(',', $input->getOption('download'))) : array_keys(DownloaderService::OPTIONS_FILE_TYPES),
+        'video_quality' => $input->getOption('video-quality'),
     ];
 
-    $optionsResolver->setDefined(['force_download', 'convert_subtitles_to', 'download_only']);
+    $optionsResolver->setDefined(['force_download', 'convert_subtitles_to', 'download_only', 'video_quality']);
     $optionsResolver->setAllowedValues('convert_subtitles_to', [null, 'srt']);
     $optionsResolver->setAllowedTypes('force_download', 'string[]');
     $optionsResolver->setAllowedValues('force_download', function (array $items) {
@@ -36,6 +38,7 @@ function downloadCommand(InputInterface $input, OutputInterface $output)
     $optionsResolver->setAllowedValues('download_only', function (array $items) {
         return !array_diff($items, array_keys(DownloaderService::OPTIONS_FILE_TYPES));
     });
+    $optionsResolver->setAllowedValues('video_quality', [null, ...array_keys(VideoQualityService::OPTIONS_VIDEO_QUALITY)]);
 
     $optionsResolver->resolve($options);
 
@@ -63,6 +66,7 @@ try {
         ->addOption('convert-subtitles', 'c', InputOption::VALUE_OPTIONAL, 'Convert subtitles to provided format. Allowed: srt')
         ->addOption('force', 'f', InputOption::VALUE_OPTIONAL, 'Download resources even if file exists locally. Allowed: '.implode(', ', array_keys(DownloaderService::OPTIONS_FILE_TYPES)))
         ->addOption('download', 'd', InputOption::VALUE_OPTIONAL, 'Download only provided resources. Allowed: '.implode(', ', array_keys(DownloaderService::OPTIONS_FILE_TYPES)))
+        ->addOption('video-quality', null, InputOption::VALUE_OPTIONAL, 'Download video with specified quality. Allowed: hd or sd')
         ->setCode('downloadCommand')
         ->run()
     ;

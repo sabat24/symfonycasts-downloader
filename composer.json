@@ -18,7 +18,8 @@
         "symfony/dom-crawler": "^5.3",
         "symfony/css-selector": "^5.3",
         "symfony/console": "^5.3",
-        "symfony/options-resolver": "^5.3"
+        "symfony/options-resolver": "^5.3",
+        "james-heinrich/getid3": "^1.9"
     },
     "require-dev": {
         "symfony/var-dumper": "^5.3"

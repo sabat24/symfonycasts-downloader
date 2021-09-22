@@ -16,7 +16,8 @@ $ php download.php
 
 * `-c, --convert-subtitles[]` Convert downloaded subtitles to provided format. Allowed: `srt`
 * `-f, --force[]` Download resources even if file exists locally. Allowed: `video`, `script`, `code`, `subtitles`
-* `-d, --download[]`  Download only provided resource types. Allowed: `video`, `script`, `code`, `subtitles`
+* `-d, --download[]` Download only provided resource types. Allowed: `video`, `script`, `code`, `subtitles`
+* `--video-quality` Download video with provided quality. If video exists locally but with wrong quality it will be downloaded again. Allowed: `hd`, `sd`.
 
 ### options examples
 
@@ -26,7 +27,7 @@ Download only subtitles (`-d`) even if they exist locally (`-f`) and convert the
 $ php download.php -f subtitles -d subtitles -c srt
 ```
 
-Download only missing scripts (PDFs) and code archives.
+Download only missing scripts (PDFs) and code archives
 
 ```sh
 $ php download.php -d script,code
@@ -37,3 +38,10 @@ or
 ```sh
 $ php download.php --download="script, code"
 ```
+
+Download only videos with HD quality
+
+```sh
+$ php download.php -d video --video-quality=hd
+```
+
