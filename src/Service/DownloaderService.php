@@ -403,12 +403,17 @@ final class DownloaderService
     // if user wants to download video file with specified quality
     private function downloadOtherQuality(?int $fileType, string $filePath, ?string $videoQualityOption): bool
     {
+        // ignore non-video files
+        if ($fileType !== self::FILE_TYPE_VIDEO) {
+            return false;
+        }
+
         // if file does not exist, download it anyway
         if (!file_exists($filePath)) {
             return true;
         }
 
-        if ($fileType === self::FILE_TYPE_VIDEO && $videoQualityOption !== null) {
+        if ($videoQualityOption !== null) {
             $videoQualityService = new VideoQualityService();
 
             return !$videoQualityService->isRequiredQuality(
