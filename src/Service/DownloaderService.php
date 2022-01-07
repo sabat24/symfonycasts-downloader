@@ -59,7 +59,7 @@ final class DownloaderService
             return;
         }
 
-        $courses = $this->getCourses();
+        $courses = $this->getCourses($options['clear_cache']);
 
         $this->io->section('Wanted courses');
         $this->io->listing(array_keys($courses));
@@ -262,11 +262,12 @@ final class DownloaderService
     }
 
     /**
+     * @param bool $clearCache
      * @return array
      */
-    private function getCourses(): array
+    private function getCourses(bool $clearCache = false): array
     {
-        $courses = $this->fetchCourses();
+        $courses = $this->fetchCourses($clearCache);
         $whitelist = $this->configs['COURSES'];
 
         if (!empty($whitelist)) {
@@ -281,14 +282,14 @@ final class DownloaderService
     }
 
     /**
+     * @param bool $clearCache
      * @return array
      */
-    private function fetchCourses(): array
+    private function fetchCourses(bool $clearCache): array
     {
         $this->io->title('Fetching courses...');
-
         $blueprintFile = __DIR__.'/../blueprint.json';
-        if (file_exists($blueprintFile)) {
+        if ($clearCache === false && file_exists($blueprintFile)) {
             return json_decode(file_get_contents($blueprintFile), true);
         }
 

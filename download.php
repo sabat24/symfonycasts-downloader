@@ -26,9 +26,11 @@ function downloadCommand(InputInterface $input, OutputInterface $output)
         'force_download' => $input->getOption('force') ? array_map('trim', explode(',', $input->getOption('force'))) : [],
         'download_only' => $input->getOption('download') ? array_map('trim', explode(',', $input->getOption('download'))) : array_keys(DownloaderService::OPTIONS_FILE_TYPES),
         'video_quality' => $input->getOption('video-quality'),
+        'clear_cache' => $input->getOption('clear-cache'),
+
     ];
 
-    $optionsResolver->setDefined(['force_download', 'convert_subtitles_to', 'download_only', 'video_quality']);
+    $optionsResolver->setDefined(['force_download', 'convert_subtitles_to', 'download_only', 'video_quality', 'clear_cache']);
     $optionsResolver->setAllowedValues('convert_subtitles_to', [null, 'srt']);
     $optionsResolver->setAllowedTypes('force_download', 'string[]');
     $optionsResolver->setAllowedValues('force_download', function (array $items) {
@@ -67,6 +69,7 @@ try {
         ->addOption('force', 'f', InputOption::VALUE_OPTIONAL, 'Download resources even if file exists locally. Allowed: '.implode(', ', array_keys(DownloaderService::OPTIONS_FILE_TYPES)))
         ->addOption('download', 'd', InputOption::VALUE_OPTIONAL, 'Download only provided resources. Allowed: '.implode(', ', array_keys(DownloaderService::OPTIONS_FILE_TYPES)))
         ->addOption('video-quality', null, InputOption::VALUE_OPTIONAL, 'Download video with specified quality. Allowed: hd or sd')
+        ->addOption('clear-cache', null, InputOption::VALUE_NONE, 'Clear courses list cache if exists. Script will download fresh courses list from SymfonyCasts.')
         ->setCode('downloadCommand')
         ->run()
     ;

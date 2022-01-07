@@ -18,6 +18,7 @@ $ php download.php
 * `-f, --force[]` Download resources even if file exists locally. Allowed: `video`, `script`, `code`, `subtitles`
 * `-d, --download[]` Download only provided resource types. Allowed: `video`, `script`, `code`, `subtitles`
 * `--video-quality` Download video with provided quality. If video exists locally but with wrong quality it will be downloaded again. Allowed: `hd`, `sd`.
+* `--clear-cache` Clear courses list cache if exists. Script will download fresh courses list from SymfonyCasts.
 
 ### options examples
 
