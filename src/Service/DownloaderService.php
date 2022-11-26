@@ -23,6 +23,8 @@ final class DownloaderService
 
     private const FILE_TYPE_SUBTITLES = 4;
 
+    private const ALLOW_MAX_REDIRECTS = 2;
+
     public const OPTIONS_FILE_TYPES = [
         'video' => self::FILE_TYPE_VIDEO,
         'script' => self::FILE_TYPE_SCRIPT,
@@ -52,7 +54,7 @@ final class DownloaderService
     {
         $this->login();
 
-        $downloadPath = "{$this->configs['TARGET']}/symfonycasts";
+        $downloadPath = "{$this->configs['TARGET']}/";
         if (!is_dir($downloadPath) && !mkdir($downloadPath) && !is_dir($downloadPath)) {
             $this->io->error("Unable to create download directory '$downloadPath'");
 
@@ -230,8 +232,8 @@ final class DownloaderService
 
         try {
             $this->client->get($url, [
-                'save_to' => $filePath,
-                'allow_redirects' => ['max' => 2],
+                'sink' => $filePath,
+                'allow_redirects' => ['max' => self::ALLOW_MAX_REDIRECTS],
                 'auth' => ['username', 'password'],
                 'progress' => function ($total, $downloaded) use ($io, $fileName, &$progressBar) {
                     if ($total && $progressBar === null) {
