@@ -115,8 +115,9 @@ final class DownloaderService
                 }
 
                 $crawler = new Crawler($response->getBody()->getContents());
+                $domElements = $crawler->filter('button.js-course-download-btn')->nextAll()->filter('li > a');
                 /** @var \DOMElement $domElement */
-                foreach ($crawler->filter('[aria-labelledby="downloadDropdown"] a, #captions') as $domElement) {
+                foreach ($domElements as $domElement) {
                     $url = null;
                     $fileName = false;
                     $fileType = null;
@@ -135,7 +136,7 @@ final class DownloaderService
                             $this->io->warning('Not subscribed to course: '.$url);
                             $fileName = null;
                         break;
-                        case (false !== strpos($url, '.vtt')):
+                        case (false !== strpos($url, 'subtitles')):
                             $fileType = self::FILE_TYPE_SUBTITLES;
                             $fileName = in_array($fileTypesOptions[self::FILE_TYPE_SUBTITLES], $options['download_only'])
                                 ? sprintf('%03d', $chaptersCounter)."-$name.vtt"
@@ -319,7 +320,7 @@ final class DownloaderService
             $response = $this->client->get($courseUri);
             $crawler = new Crawler($response->getBody()->getContents());
 
-            $chapterLinks = $crawler->filter('ul.chapter-list > li > a');
+            $chapterLinks = $crawler->filter('ul.js-chapter-list > li a');
 
             if ($chapterLinks->count() === 0) {
                 continue;
