@@ -319,7 +319,7 @@ final class DownloaderService
             $response = $this->client->get($courseUri);
             $crawler = new Crawler($response->getBody()->getContents());
 
-            $chapterLinks = $crawler->filter('ul.chapter-list > li > a');
+            $chapterLinks = $crawler->filter('ul.js-chapter-list > li a');
 
             if ($chapterLinks->count() === 0) {
                 continue;
